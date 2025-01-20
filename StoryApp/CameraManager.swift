@@ -7,6 +7,8 @@ class CameraManager: NSObject, ObservableObject, AVCaptureFileOutputRecordingDel
     @Published var detectedFaces: [Face] = []
     @Published var videoMetadata: VideoMetadata?
     @Published var showFaceDetails: Bool = false
+    @Published var dominantEmotions: [String] = []  // Array to store dominant emotions for each 10s segment
+    
     private var captureSession: AVCaptureSession?
     private var videoOutput: AVCaptureMovieFileOutput?
     var previewLayer: AVCaptureVideoPreviewLayer? {
@@ -15,6 +17,11 @@ class CameraManager: NSObject, ObservableObject, AVCaptureFileOutputRecordingDel
     private var _previewLayer: AVCaptureVideoPreviewLayer?
     private var currentJobId: String?
     var currentRecordingPath: URL?
+    
+    private var recordingTimer: Timer?
+    private var currentSegment = 0
+    
+    private var activeUploads: Set<String> = []
     
     override init() {
         super.init()
@@ -64,22 +71,123 @@ class CameraManager: NSObject, ObservableObject, AVCaptureFileOutputRecordingDel
     }
     
     func startRecording() {
-        guard let videoOutput = videoOutput else {
-            print("Video output is not available.")
-            return
+        startNewSegment()
+    }
+    
+    private func startNewSegment() {
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd-HH-mm-ss"
+        let timestamp = dateFormatter.string(from: Date())
+        let outputPath = FileManager.default.temporaryDirectory.appendingPathComponent("video_segment_\(currentSegment)_\(timestamp).mov")
+        currentRecordingPath = outputPath
+        videoOutput?.startRecording(to: outputPath, recordingDelegate: self)
+        isRecording = true
+        
+        // Set timer for 5 seconds instead of 10
+        recordingTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: false) { [weak self] _ in
+            self?.handleSegmentComplete()
+        }
+    }
+    
+    private func handleSegmentComplete() {
+        guard isRecording else { return }
+        
+        videoOutput?.stopRecording()
+        isRecording = false
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            guard let self = self else { return }
+            
+            if let videoPath = self.currentRecordingPath,
+               let fileAttributes = try? FileManager.default.attributesOfItem(atPath: videoPath.path),
+               let fileSize = fileAttributes[.size] as? NSNumber,
+               fileSize.intValue > 0 {
+                
+                print("Segment \(self.currentSegment) recorded successfully, size: \(fileSize.intValue) bytes")
+                self.uploadCurrentSegment()
+                
+                // Start next segment after initiating upload
+                self.currentSegment += 1
+                self.startNewSegment()
+            } else {
+                print("Error: Segment \(self.currentSegment) file is invalid or empty")
+                self.currentSegment += 1
+                self.startNewSegment()
+            }
+        }
+    }
+    
+    private func uploadCurrentSegment() {
+        guard let videoPath = currentRecordingPath else { return }
+        print("Uploading segment \(currentSegment) from path: \(videoPath)")
+        
+        // Create a local copy of the video file
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd-HH-mm-ss"
+        let timestamp = dateFormatter.string(from: Date())
+        let segmentCopyPath = FileManager.default.temporaryDirectory.appendingPathComponent("segment_\(currentSegment)_\(timestamp).mov")
+        
+        do {
+            try FileManager.default.copyItem(at: videoPath, to: segmentCopyPath)
+            
+            uploadVideo(fileURL: segmentCopyPath) { [weak self] result in
+                switch result {
+                case .success(let response):
+                    self?.processSegmentResponse(response)
+                    // Clean up the copy after successful upload
+                    try? FileManager.default.removeItem(at: segmentCopyPath)
+                case .failure(let error):
+                    print("Segment \(self?.currentSegment ?? 0) upload error: \(error)")
+                }
+            }
+        } catch {
+            print("Error copying segment file: \(error)")
+        }
+    }
+    
+    private func processSegmentResponse(_ response: FaceDetectionResponse) {
+        // Find the dominant emotion for this segment
+        let allEmotions = response.faces.compactMap { faceWrapper -> String? in
+            let emotions = faceWrapper.face.emotions
+            return emotions.max(by: { $0.confidence < $1.confidence })?.type
         }
         
-        let videoPath = getUniqueVideoPath()
-        currentRecordingPath = videoPath
-        videoOutput.startRecording(to: videoPath, recordingDelegate: self)
-        isRecording = true
-        print("Started recording to: \(videoPath)")
+        // Get most frequent emotion
+        let dominantEmotion = findMostFrequent(emotions: allEmotions)
+        DispatchQueue.main.async {
+            self.dominantEmotions.append(dominantEmotion ?? "UNKNOWN")
+        }
+    }
+    
+    private func findMostFrequent(emotions: [String]) -> String? {
+        let counts = emotions.reduce(into: [:]) { counts, emotion in
+            counts[emotion, default: 0] += 1
+        }
+        return counts.max(by: { $0.value < $1.value })?.key
     }
     
     func stopRecording() {
-        videoOutput?.stopRecording()
-        isRecording = false
-        print("Stopped recording.")
+        // Stop current recording if active
+        if isRecording {
+            videoOutput?.stopRecording()
+            isRecording = false
+        }
+        
+        // Cancel any pending timer
+        recordingTimer?.invalidate()
+        recordingTimer = nil
+        
+        // Stop the capture session
+        captureSession?.stopRunning()
+        
+        // Clear the preview layer
+        _previewLayer?.removeFromSuperlayer()
+        _previewLayer = nil
+        
+        // Reset segment counter
+        currentSegment = 0
+        
+        print("Camera session and recording stopped")
     }
     
     func fileOutput(_ output: AVCaptureFileOutput, didFinishRecordingTo outputFileURL: URL, from connections: [AVCaptureConnection], error: Error?) {
@@ -116,6 +224,9 @@ class CameraManager: NSObject, ObservableObject, AVCaptureFileOutputRecordingDel
     }
     
     func uploadVideo(fileURL: URL, completion: @escaping (Result<FaceDetectionResponse, Error>) -> Void) {
+        let uploadId = UUID().uuidString
+        activeUploads.insert(uploadId)
+        
         let url = URL(string: "https://07d4-2601-8c-4a7e-3cd0-7029-8fad-18b1-f6a7.ngrok-free.app/upload")!
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
@@ -144,9 +255,13 @@ class CameraManager: NSObject, ObservableObject, AVCaptureFileOutputRecordingDel
         body.append("--\(boundary)--\r\n".data(using: .utf8)!)
         
         // Perform the upload task asynchronously
-        let task = URLSession.shared.uploadTask(with: request, from: body) { data, response, error in
+        let task = URLSession.shared.uploadTask(with: request, from: body) { [weak self] data, response, error in
+            defer {
+                self?.activeUploads.remove(uploadId)
+            }
+            
             if let error = error {
-                print("Error uploading video: \(error.localizedDescription)")
+                print("Upload \(uploadId) error: \(error.localizedDescription)")
                 DispatchQueue.main.async {
                     completion(.failure(error))
                 }
@@ -181,16 +296,21 @@ class CameraManager: NSObject, ObservableObject, AVCaptureFileOutputRecordingDel
             
             // Print the raw response data
             if let responseString = String(data: data, encoding: .utf8) {
-                print("Raw response data: \(responseString)")
+                if let response = try? JSONDecoder().decode(FaceDetectionResponse.self, from: data) {
+                    let facesCount = response.faces.count
+                    let duration = response.videoMetadata?.durationMillis ?? 0
+                    let mainEmotion = response.faces.first?.face.emotions.max(by: { $0.confidence < $1.confidence })?.type ?? "unknown"
+                    print("✅ Upload \(uploadId) complete - Faces: \(facesCount), Duration: \(duration)ms, Main emotion: \(mainEmotion)")
+                }
             }
             
             // Parse the response to get the face detection results
             do {
                 let faceDetectionResponse = try JSONDecoder().decode(FaceDetectionResponse.self, from: data)
-                DispatchQueue.main.async {
-                    self.handleFaceDetectionResponse(faceDetectionResponse)
+                DispatchQueue.main.async { [weak self] in
+                    self?.handleFaceDetectionResponse(faceDetectionResponse)
+                    completion(.success(faceDetectionResponse))
                 }
-                completion(.success(faceDetectionResponse))
             } catch {
                 print("Error parsing upload response: \(error.localizedDescription)")
                 DispatchQueue.main.async {

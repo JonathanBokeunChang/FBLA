@@ -3,6 +3,7 @@ import SwiftUI
 struct FaceResultsView: View {
     let faces: [Face]
     let videoMetadata: VideoMetadata?
+    let dominantEmotions: [String]
     @State private var isLoading: Bool = true
 
     var body: some View {
@@ -11,36 +12,9 @@ struct FaceResultsView: View {
                 headerView
                 
                 if isLoading {
-                    VStack {
-                        ProgressView()
-                            .progressViewStyle(CircularProgressViewStyle())
-                            .scaleEffect(1.5)
-                        Text("**Please wait for the machine learning model to determine emotions...**")
-                            .padding(30)
-                            .background(.white.opacity(0.5))
-                            .foregroundStyle(.blue)
-                    }
-                    .foregroundColor(.blue)
-                    .background(Color.white.opacity(0.8))
-                    .cornerRadius(10)
-                    
+                    loadingView
                 } else {
-                    VStack {
-                        ProgressView()
-                            .progressViewStyle(CircularProgressViewStyle())
-                            .scaleEffect(1.5)
-                        Text("**Please wait for the machine learning model to determine emotions...**")
-                            .padding(30)
-                            .background(.white.opacity(0.5))
-                            .foregroundStyle(.blue)
-                    }
-                    .foregroundColor(.blue)
-                    .background(Color.white.opacity(0.8))
-                    .cornerRadius(10)
-                    
-                    ForEach(faces.indices, id: \.self) { index in
-                        faceDetailView(for: faces[index], at: index)
-                    }
+                    emotionsTimelineView
                     
                     if let metadata = videoMetadata {
                         videoMetadataView(metadata: metadata)
@@ -52,6 +26,7 @@ struct FaceResultsView: View {
         .navigationTitle("Results")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
+            // Wait for emotions to be processed
             DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
                 isLoading = false
             }
@@ -65,29 +40,42 @@ struct FaceResultsView: View {
             .padding()
     }
 
-    private func faceDetailView(for face: Face, at index: Int) -> some View {
-        let dominantEmotion = face.emotions.max(by: { $0.confidence < $1.confidence })
-        let backgroundColor = getColorForEmotion(dominantEmotion?.type ?? "CALM")
-        
-        return VStack {
-            HStack {
-                Text("Time \(Double(index) * 0.5) Seconds")
-                    .font(.headline)
-                Spacer()
-                Text(dominantEmotion?.type ?? "Unknown")
-                    .font(.subheadline)
-                    .foregroundColor(Color.white)
-                    .padding(5)
-                    .background(backgroundColor)
-                    .cornerRadius(5)
-            }
-            .padding()
-            
-            Text("Confidence: \(face.confidence, specifier: "%.2f")%")
+    private var loadingView: some View {
+        VStack {
+            ProgressView()
+                .progressViewStyle(CircularProgressViewStyle())
+                .scaleEffect(1.5)
+            Text("**Please wait for the machine learning model to determine emotions...**")
+                .padding(30)
+                .background(.white.opacity(0.5))
+                .foregroundStyle(.blue)
+        }
+        .foregroundColor(.blue)
+        .background(Color.white.opacity(0.8))
+        .cornerRadius(10)
+    }
+
+    private var emotionsTimelineView: some View {
+        VStack(alignment: .leading, spacing: 15) {
+            Text("Emotional Timeline")
+                .font(.headline)
                 .padding(.bottom, 5)
+            
+            ForEach(dominantEmotions.indices, id: \.self) { index in
+                HStack {
+                    Text("0:\(index * 5)-0:\((index + 1) * 5)")
+                        .font(.subheadline)
+                        .foregroundColor(.gray)
+                    
+                    Text(dominantEmotions[index])
+                        .padding(8)
+                        .background(getColorForEmotion(dominantEmotions[index]))
+                        .cornerRadius(8)
+                }
+            }
         }
         .padding()
-        .background(Color.gray.opacity(0.2))
+        .background(Color.white.opacity(0.1))
         .cornerRadius(10)
     }
 

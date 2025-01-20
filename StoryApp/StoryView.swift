@@ -78,7 +78,11 @@ struct StoryView: View {
                         .tint(.red.opacity(0.8))
                         .padding()
                         .sheet(isPresented: $showResults) {
-                            FaceResultsView(faces: cameraManager.detectedFaces, videoMetadata: cameraManager.videoMetadata)
+                            FaceResultsView(
+                                faces: cameraManager.detectedFaces,
+                                videoMetadata: cameraManager.videoMetadata,
+                                dominantEmotions: cameraManager.dominantEmotions
+                            )
                         }
                     }
                 }

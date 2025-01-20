@@ -28,7 +28,11 @@ struct ContentView: View {
                     .position(x: UIScreen.main.bounds.width - 120, y: 100)
             }
             .fullScreenCover(isPresented: $showResults) {
-                FaceResultsView(faces: cameraManager.detectedFaces, videoMetadata: cameraManager.videoMetadata)
+                FaceResultsView(
+                    faces: cameraManager.detectedFaces,
+                    videoMetadata: cameraManager.videoMetadata,
+                    dominantEmotions: cameraManager.dominantEmotions
+                )
             }
         }
     }
