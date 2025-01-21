@@ -3,7 +3,7 @@ import SwiftUI
 struct StoryChoice: Identifiable {
     let id = UUID()
     let title: String
-    let description: String
+    var description: String
     let icon: String
     let nextSceneId: String
 }
@@ -11,7 +11,7 @@ struct StoryChoice: Identifiable {
 struct StoryScene {
     let id: String
     let title: String
-    let description: String
+    var description: String
     let evidencePercentage: Int
     let choices: [StoryChoice]
     let isEnding: Bool
@@ -22,6 +22,7 @@ class StoryManager: ObservableObject {
     
     @Published var currentSceneId = "arrival"
     @Published var evidenceCollected = 0
+    @Published var isLoadingDescription = false
     
     var currentScene: StoryScene {
         scenes[currentSceneId] ?? initialScene
@@ -430,5 +431,45 @@ class StoryManager: ObservableObject {
     func resetStory() {
         currentSceneId = "arrival"
         evidenceCollected = 0
+    }
+    
+    func updateCurrentSceneDescription(with newDescription: String) {
+        if var scene = scenes[currentSceneId] {
+            scene.description = newDescription
+            scenes[currentSceneId] = scene
+        }
+    }
+    
+    func fetchNewDescription(for genre: String) {
+        isLoadingDescription = true
+        
+        let currentStoryPart = currentScene.description
+        let systemMessage = "Modify this investigation story with this genre \(genre): \(currentStoryPart)"
+        
+        let url = URL(string: "https://96da-50-224-175-53.ngrok-free.app/gpt")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        let body: [String: Any] = ["input": systemMessage]
+        request.httpBody = try? JSONSerialization.data(withJSONObject: body, options: [])
+        
+        URLSession.shared.dataTask(with: request) { data, response, error in
+            if let error = error {
+                print("Error: \(error.localizedDescription)")
+                DispatchQueue.main.async {
+                    self.isLoadingDescription = false
+                }
+                return
+            }
+            guard let data = data else { return }
+            if let json = try? JSONSerialization.jsonObject(with: data, options: []) as? [String: Any],
+               let generatedStoryPart = json["response"] as? String {
+                DispatchQueue.main.async {
+                    self.updateCurrentSceneDescription(with: generatedStoryPart)
+                    self.isLoadingDescription = false
+                }
+            }
+        }.resume()
     }
 } 

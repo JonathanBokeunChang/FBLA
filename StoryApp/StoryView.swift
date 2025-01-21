@@ -43,7 +43,13 @@ struct StoryView: View {
                         .foregroundStyle(.yellow)
                         .padding(.horizontal)
                     
-                    StoryCard(scene: storyManager.currentScene)
+                    if storyManager.isLoadingDescription {
+                        ProgressView("Generating new story description...")
+                            .progressViewStyle(CircularProgressViewStyle())
+                            .padding()
+                    } else {
+                        StoryCard(scene: storyManager.currentScene)
+                    }
                     
                     if !storyManager.currentScene.isEnding {
                         ChoicesView(
@@ -53,12 +59,8 @@ struct StoryView: View {
                                 withAnimation(.easeInOut(duration: 0.3)) {
                                     storyManager.moveToScene(nextSceneId)
                                 }
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                                    isTransitioning = false
-                                }
                             }
                         )
-                        .opacity(isTransitioning ? 0 : 1)
                     } else {
                         Button("Done") {
                             if !cameraManager.isRecording {
@@ -90,6 +92,9 @@ struct StoryView: View {
             }
             .onAppear {
                 cameraManager.startRecording()
+                if storyManager.currentSceneId != "arrival" && storyManager.currentSceneId != "default" {
+                    storyManager.fetchNewDescription(for: storyManager.currentSceneId)
+                }
             }
             .onDisappear {
                 cameraManager.stopRecording()

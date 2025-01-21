@@ -5,6 +5,10 @@ struct WelcomeView: View {
     @State private var showMainStory = false
     @State private var showResults = false
     @StateObject private var cameraManager = CameraManager()
+    
+    // New state variables for genre selection
+    @State private var selectedGenre: String = "Default"
+    let genres = ["Default", "Horror", "Thriller", "Cozy"]
 
     var body: some View {
         ZStack {
@@ -65,26 +69,20 @@ struct WelcomeView: View {
                 }
                 .opacity(isTextVisible ? 1 : 0)
                 
+                // Genre Picker
+                Picker("Select Genre", selection: $selectedGenre) {
+                    ForEach(genres, id: \.self) { genre in
+                        Text(genre).tag(genre)
+                    }
+                }
+                .pickerStyle(SegmentedPickerStyle())
+                .padding()
+                
                 // Start button
-                Button(action: {
+                Button("BEGIN INVESTIGATION") {
                     withAnimation(.spring()) {
                         showMainStory = true
                     }
-                }) {
-                    Text("BEGIN INVESTIGATION")
-                        .font(.system(.headline, design: .monospaced))
-                        .foregroundStyle(.white)
-                        .padding()
-                        .frame(maxWidth: .infinity)
-                        .background(
-                            RoundedRectangle(cornerRadius: 12)
-                                .fill(.red.opacity(0.3))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 12)
-                                        .stroke(.red.opacity(0.5), lineWidth: 1)
-                                )
-                                .shadow(color: .red.opacity(0.3), radius: 10, x: 0, y: 5)
-                        )
                 }
                 .padding(.horizontal, 40)
                 .opacity(isTextVisible ? 1 : 0)
@@ -98,7 +96,42 @@ struct WelcomeView: View {
         }
         .fullScreenCover(isPresented: $showMainStory) {
             StoryView(cameraManager: cameraManager, showResults: $showResults)
-                .environmentObject(StoryManager.shared)
+                .onAppear {
+                    StoryManager.shared.currentSceneId = selectedGenre // Set the current scene based on selected genre
+                }
         }
+    }
+
+    private func generateStoryPart() {
+        // Assuming you have a way to get the current story part
+        let currentStoryPart = "This is the current story part." // Replace with actual story part
+        let systemMessage = "Modify the following story part to fit the genre \(selectedGenre): \(currentStoryPart)"
+        
+        // Prepare the request to the GPT API
+        let url = URL(string: "https://07d4-2601-8c-4a7e-3cd0-7029-8fad-18b1-f6a7.ngrok-free.app//gpt")! // Replace with your actual API URL
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        let body: [String: Any] = ["input": systemMessage]
+        request.httpBody = try? JSONSerialization.data(withJSONObject: body, options: [])
+        
+        // Perform the API request
+        URLSession.shared.dataTask(with: request) { data, response, error in
+            if let error = error {
+                print("Error: \(error.localizedDescription)")
+                return
+            }
+            guard let data = data else { return }
+            if let json = try? JSONSerialization.jsonObject(with: data, options: []) as? [String: Any],
+               let generatedStoryPart = json["response"] as? String {
+                // Use the generated story part in your StoryView
+                DispatchQueue.main.async {
+                    // Update your StoryView with the new story part
+                    // For example, you might have a state variable in StoryView to hold the story part
+                    // storyPart = generatedStoryPart
+                }
+            }
+        }.resume()
     }
 } 

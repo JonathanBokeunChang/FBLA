@@ -227,7 +227,7 @@ class CameraManager: NSObject, ObservableObject, AVCaptureFileOutputRecordingDel
         let uploadId = UUID().uuidString
         activeUploads.insert(uploadId)
         
-        let url = URL(string: "https://07d4-2601-8c-4a7e-3cd0-7029-8fad-18b1-f6a7.ngrok-free.app/upload")!
+        let url = URL(string: "https://96da-50-224-175-53.ngrok-free.app/upload")!
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         

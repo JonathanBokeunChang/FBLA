@@ -31,7 +31,7 @@ struct ChoicesView: View {
 
 struct DetectiveChoiceButton: View {
     let choice: String
-    let description: String
+    var description: String
     let icon: String
     let accentColor: Color
     let action: () -> Void
