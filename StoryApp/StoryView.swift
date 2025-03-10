@@ -6,6 +6,7 @@ struct StoryView: View {
     @State private var isTransitioning = false
     @State private var isFinishTransitioning = false
     @State private var showTransition = false
+    @State private var showHelp = false
     @ObservedObject var cameraManager: CameraManager
     @Binding var showResults: Bool
     
@@ -63,17 +64,15 @@ struct StoryView: View {
                         )
                     } else {
                         Button("Done") {
-                            if !cameraManager.isRecording {
-                                print("Done button pressed - not recording")
-                                showResults = true
-                                uploadVideo()
-                            } else {
+                            if cameraManager.isRecording {
                                 print("Done button pressed - was recording")
                                 cameraManager.stopRecording()
                                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                                    showResults = true
                                     uploadVideo()
                                 }
+                            } else {
+                                print("Done button pressed - not recording")
+                                uploadVideo()
                             }
                         }
                         .buttonStyle(.borderedProminent)
@@ -100,7 +99,23 @@ struct StoryView: View {
                 cameraManager.stopRecording()
             }
             
-            
+            VStack {
+                Spacer()
+                HStack {
+                    Spacer()
+                    Button(action: {
+                        showHelp = true
+                    }) {
+                        Image(systemName: "questionmark.circle.fill")
+                            .font(.title2)
+                            .foregroundColor(.blue)
+                            .padding()
+                    }
+                }
+            }
+        }
+        .sheet(isPresented: $showHelp) {
+            HelpView()
         }
     }
 
@@ -117,6 +132,7 @@ struct StoryView: View {
                 DispatchQueue.main.async {
                     self.cameraManager.detectedFaces = response.faces.map { $0.face }
                     self.cameraManager.videoMetadata = response.videoMetadata
+                    self.showResults = true
                 }
             case .failure(let error):
                 print("Upload error: \(error.localizedDescription)")

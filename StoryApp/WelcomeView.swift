@@ -4,6 +4,7 @@ struct WelcomeView: View {
     @State private var isTextVisible = false
     @State private var showMainStory = false
     @State private var showResults = false
+    @State private var showHelp = false
     @StateObject private var cameraManager = CameraManager()
     
     // New state variables for genre selection
@@ -59,13 +60,12 @@ struct WelcomeView: View {
                 .opacity(isTextVisible ? 1 : 0)
                 
                 VStack(spacing: 15) {
-                    Text("A series of cryptic messages have surfaced.")
-                        .font(.system(.body, design: .serif))
-                        .foregroundStyle(.gray)
                     
-                    Text("Time is running out.")
+                    Text("Your Job is to investigate the case \n by choosing between two dire options. \n Your face will be recorded throughout the \n investigation to determine your emotions.\n First, pick a story mode")
                         .font(.system(.body, design: .serif))
                         .foregroundStyle(.gray)
+                        .multilineTextAlignment(.center)
+                    
                 }
                 .opacity(isTextVisible ? 1 : 0)
                 
@@ -78,16 +78,35 @@ struct WelcomeView: View {
                 .pickerStyle(SegmentedPickerStyle())
                 .padding()
                 
-                // Start button
-                Button("BEGIN INVESTIGATION") {
-                    withAnimation(.spring()) {
-                        showMainStory = true
+                VStack {
+                    
+                    
+                    
+                    Button("BEGIN INVESTIGATION") {
+                        withAnimation(.spring()) {
+                            showMainStory = true
+                        }
+                    }
+                    .padding(.horizontal, 40)
+                    .opacity(isTextVisible ? 1 : 0)
+                }
+                .padding()
+            }
+            
+            VStack {
+                Spacer()
+                HStack {
+                    Spacer()
+                    Button(action: {
+                        showHelp = true
+                    }) {
+                        Image(systemName: "questionmark.circle.fill")
+                            .font(.title2)
+                            .foregroundColor(.blue)
+                            .padding()
                     }
                 }
-                .padding(.horizontal, 40)
-                .opacity(isTextVisible ? 1 : 0)
             }
-            .padding()
         }
         .onAppear {
             withAnimation(.easeIn(duration: 1.5)) {
@@ -100,6 +119,9 @@ struct WelcomeView: View {
                     StoryManager.shared.currentSceneId = selectedGenre // Set the current scene based on selected genre
                 }
         }
+        .sheet(isPresented: $showHelp) {
+            HelpView()
+        }
     }
 
     private func generateStoryPart() {
@@ -108,7 +130,7 @@ struct WelcomeView: View {
         let systemMessage = "Modify the following story part to fit the genre \(selectedGenre): \(currentStoryPart)"
         
         // Prepare the request to the GPT API
-        let url = URL(string: "https://07d4-2601-8c-4a7e-3cd0-7029-8fad-18b1-f6a7.ngrok-free.app//gpt")! // Replace with your actual API URL
+        let url = URL(string: "https://b3de-2601-8c-4a7e-3cd0-340f-2fbc-361c-5ab9.ngrok-free.app/gpt")! // Replace with your actual API URL
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")

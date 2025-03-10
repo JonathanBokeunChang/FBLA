@@ -11,6 +11,7 @@ struct ContentView: View {
     @StateObject private var cameraManager = CameraManager()
     @EnvironmentObject var storyManager: StoryManager
     @State private var showResults = false
+    @State private var showHelp = false
 
     var body: some View {
         NavigationView {
@@ -33,6 +34,20 @@ struct ContentView: View {
                     videoMetadata: cameraManager.videoMetadata,
                     dominantEmotions: cameraManager.dominantEmotions
                 )
+            }
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button(action: {
+                        showHelp = true
+                    }) {
+                        Image(systemName: "questionmark.circle.fill")
+                            .font(.title2)
+                            .foregroundColor(.blue)
+                    }
+                }
+            }
+            .sheet(isPresented: $showHelp) {
+                HelpView()
             }
         }
     }

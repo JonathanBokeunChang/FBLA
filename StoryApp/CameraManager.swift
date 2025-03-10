@@ -184,6 +184,11 @@ class CameraManager: NSObject, ObservableObject, AVCaptureFileOutputRecordingDel
         _previewLayer?.removeFromSuperlayer()
         _previewLayer = nil
         
+        // Ensure the last segment is uploaded
+        if let videoPath = currentRecordingPath {
+            uploadCurrentSegment()
+        }
+        
         // Reset segment counter
         currentSegment = 0
         
@@ -227,7 +232,7 @@ class CameraManager: NSObject, ObservableObject, AVCaptureFileOutputRecordingDel
         let uploadId = UUID().uuidString
         activeUploads.insert(uploadId)
         
-        let url = URL(string: "https://96da-50-224-175-53.ngrok-free.app/upload")!
+        let url = URL(string: "https://b3de-2601-8c-4a7e-3cd0-340f-2fbc-361c-5ab9.ngrok-free.app/upload")!
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         

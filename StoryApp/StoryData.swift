@@ -433,43 +433,46 @@ class StoryManager: ObservableObject {
         evidenceCollected = 0
     }
     
-    func updateCurrentSceneDescription(with newDescription: String) {
-        if var scene = scenes[currentSceneId] {
+    func updateCurrentSceneDescription(for sceneId: String, with newDescription: String) {
+        if var scene = scenes[sceneId] {
             scene.description = newDescription
-            scenes[currentSceneId] = scene
+            scenes[sceneId] = scene
         }
     }
     
     func fetchNewDescription(for genre: String) {
         isLoadingDescription = true
         
-        let currentStoryPart = currentScene.description
-        let systemMessage = "Modify this investigation story with this genre \(genre): \(currentStoryPart)"
-        
-        let url = URL(string: "https://96da-50-224-175-53.ngrok-free.app/gpt")!
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        
-        let body: [String: Any] = ["input": systemMessage]
-        request.httpBody = try? JSONSerialization.data(withJSONObject: body, options: [])
-        
-        URLSession.shared.dataTask(with: request) { data, response, error in
-            if let error = error {
-                print("Error: \(error.localizedDescription)")
-                DispatchQueue.main.async {
-                    self.isLoadingDescription = false
+        // Iterate over all scenes to update their descriptions
+        for (sceneId, scene) in scenes {
+            let currentStoryPart = scene.description
+            let systemMessage = "Modify this investigation story with this genre \(genre): \(currentStoryPart)"
+            
+            let url = URL(string: "https://b3de-2601-8c-4a7e-3cd0-340f-2fbc-361c-5ab9.ngrok-free.app/gpt")!
+            var request = URLRequest(url: url)
+            request.httpMethod = "POST"
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            
+            let body: [String: Any] = ["input": systemMessage]
+            request.httpBody = try? JSONSerialization.data(withJSONObject: body, options: [])
+            
+            URLSession.shared.dataTask(with: request) { data, response, error in
+                if let error = error {
+                    print("Error: \(error.localizedDescription)")
+                    DispatchQueue.main.async {
+                        self.isLoadingDescription = false
+                    }
+                    return
                 }
-                return
-            }
-            guard let data = data else { return }
-            if let json = try? JSONSerialization.jsonObject(with: data, options: []) as? [String: Any],
-               let generatedStoryPart = json["response"] as? String {
-                DispatchQueue.main.async {
-                    self.updateCurrentSceneDescription(with: generatedStoryPart)
-                    self.isLoadingDescription = false
+                guard let data = data else { return }
+                if let json = try? JSONSerialization.jsonObject(with: data, options: []) as? [String: Any],
+                   let generatedStoryPart = json["response"] as? String {
+                    DispatchQueue.main.async {
+                        self.updateCurrentSceneDescription(for: sceneId, with: generatedStoryPart)
+                        self.isLoadingDescription = false
+                    }
                 }
-            }
-        }.resume()
+            }.resume()
+        }
     }
 } 
